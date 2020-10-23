@@ -62,5 +62,11 @@ int IfForeGround(char **argList) {
     while (*(argList + 1) != NULL) {
         ++argList;
     }
-    return strcmp(*argList, "&") ? 1 : 0;
+    if(!strcmp(*argList, "&")){
+        free(*argList);
+        *argList = NULL;
+        return 0;
+    } else {
+        return 1;
+    }
 }

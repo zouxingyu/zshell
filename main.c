@@ -11,6 +11,7 @@ struct termios shellTmodes;
 int shellTerminal;
 int shellIsInteractive;
 Job *jobList = NULL;
+char jidList[MAXSIZE];
 void InitShell() {
     /* See if we are running interactively.  */
     shellTerminal = STDIN_FILENO;
@@ -27,12 +28,12 @@ void InitShell() {
         signal(SIGTSTP, SIG_IGN);
         signal(SIGTTIN, SIG_IGN);
         signal(SIGTTOU, SIG_IGN);
-        signal(SIGCHLD, SIG_IGN);
+        signal(SIGCHLD, SigchldHandler);
 
         /* Put ourselves in our own process group.  */
         shellPgid = getpid();
         if (setpgid(shellPgid, shellPgid) < 0)
-            Perror("Couldn't put the shell in its own process group")
+            Perror("Couldn't put the shell in its own process group");
                 /* Grab control of the terminal.  */
                 tcsetpgrp(shellTerminal, shellPgid);
 
@@ -46,10 +47,11 @@ int main(int argc, char *argv[]) {
     int ret;
     char *cmd;
     char **argList;
+    //printf("shell pid%d,pgid%d,foreground pgid%d\n", getpid(),getpgrp(),tcgetpgrp(0));
     while ((cmd = GetInput(stdin)) != NULL) {
         if ((argList = ParseLine(cmd)) != NULL) {
             int foreGround = IfForeGround(argList);
-            int jid = GetNextJid();
+            int jid = GetNextJid(jidList);
             Job *jobPtr = CreateJob(cmd, argList, 0, jid, &shellTmodes);
             ret = Processing(jobPtr, foreGround);
         }
