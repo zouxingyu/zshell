@@ -4,14 +4,34 @@
 #define BUFSIZE 128 
 #define ARGSIZE 64 
 #define PROMPT "$"
+#define FPRINTF(str) \
+    do{ \
+        fprintf(stderr, "%s\n", str); \
+        return NULL; \
+    }while(0)
 char *GetInput(FILE *fp) {
     if (fp == NULL) return NULL;
     char *buf;
     int c;
     int bufSize = 0, pos = 0;
+    int rein = 0, reout = 0;
+    int whitespace = 0;
     printf("%s", PROMPT);
     while ((c = fgetc(fp)) != EOF) {
         if (c == '\n') break;
+        if(IsDelim(c)){
+            if(whitespace)continue;
+            whitespace = 1;
+        }else{
+            if(c == '>'){
+                if(reout) FPRINTF("redirection syntax error");
+                reout = 1;
+            }else if(c == '<'){
+                if(rein) FPRINTF("redirection syntax error");
+                rein = 1;
+            }
+            whitespace = 0;
+        }
         if (pos == 0) {
             buf = Malloc(BUFSIZE);
             bufSize += BUFSIZE;
@@ -57,16 +77,10 @@ char *GetString(char *str, int len) {
     return p;
 }
 int IsDelim(int c) { return c == 0x20 || c == 0x09; }
-int IfForeGround(char **argList) {
-    if (argList == NULL) return 0;
-    while (*(argList + 1) != NULL) {
-        ++argList;
-    }
-    if(!strcmp(*argList, "&")){
-        free(*argList);
-        *argList = NULL;
-        return 0;
-    } else {
-        return 1;
-    }
+int IfForeGround(char **argList){
+   while(*(argList + 1) != NULL){
+        ++argList; 
+   } 
+   if(!strcmp(*argList, "&")) return 0;
+   else return 1;
 }

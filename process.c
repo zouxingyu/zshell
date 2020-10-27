@@ -8,16 +8,9 @@
 #include "headers/function.h"
 #include "headers/job.h"
 /* for debug */
-void PrintArgList(char **argList) {
-    if (argList == NULL) return;
-    while (*argList) {
-        printf("%s ", *argList++);
-    }
-    printf("\n");
-}
 int Processing(Job *jobPtr, int foreGround) {
-    //printf("cmd:%s\njid:%d\nargList:\n", jobPtr->command, jobPtr->jid);
-    //PrintArgList(jobPtr->firstProcess->argList);
+   // printf("cmd:%s\njid:%d\nargList:\n", jobPtr->command, jobPtr->jid);
+   // PrintArgList(jobPtr->firstProcess->argList);
     int ret;
     if (!IsBuildIn(jobPtr, &ret)) {
         ret = Execute(jobPtr, foreGround);

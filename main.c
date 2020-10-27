@@ -50,9 +50,13 @@ int main(int argc, char *argv[]) {
     //printf("shell pid%d,pgid%d,foreground pgid%d\n", getpid(),getpgrp(),tcgetpgrp(0));
     while ((cmd = GetInput(stdin)) != NULL) {
         if ((argList = ParseLine(cmd)) != NULL) {
-            int foreGround = IfForeGround(argList);
             int jid = GetNextJid(jidList);
-            Job *jobPtr = CreateJob(cmd, argList, 0, jid, &shellTmodes);
+            int foreGround = IfForeGround(argList);
+            Job *jobPtr = ComposeJob(cmd, argList, 0, jid, &shellTmodes);
+            if(jobPtr == NULL){
+                DeleteJobList(jobPtr);
+                continue;
+            } 
             ret = Processing(jobPtr, foreGround);
         }
     }

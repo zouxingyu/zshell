@@ -26,3 +26,10 @@ void FreeArgList(char **argList) {
         }
     }
 }
+void PrintArgList(char **argList) {
+    if (argList == NULL) return;
+    while (*argList) {
+        printf("%s ", *argList++);
+    }
+    printf("\n");
+}

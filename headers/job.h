@@ -32,8 +32,8 @@ extern struct termios shellTmodes;
 extern int shellTerminal;
 extern int shellIsInteractive;
 
-Job *CreateJob(char *cmd, char **argList, pid_t pgid, int jid, struct termios *tmodesPtr);  
-Process *CreateProcessList(char **argList);
+Job *CreateJob(char *cmd, pid_t pgid, int jid, struct termios *tmodesPtr);  
+Process *CreateProcess(char **argList);
 Job *InsertJobList(Job *jobList, Job *jobPtr);
 void DeleteJobList(Job *jobPtr);
 void DeleteJob(Job *jobPtr);
@@ -51,5 +51,6 @@ int GetJobState(Job *jobPtr);
 void SwitchState(Job *jobPtr, int foreGround, int cont);
 void WaitForJob(Job *jobPtr);
 int DoBgFg(Job *jobPtr); 
+Job *ComposeJob(char *cmd, char **argList, pid_t pgid, int jid, struct termios *tmodesPtr);
 
 #endif 
