@@ -13,16 +13,13 @@ int shellIsInteractive;
 Job *jobList = NULL;
 char jidList[MAXSIZE];
 void InitShell() {
-    /* See if we are running interactively.  */
     shellTerminal = STDIN_FILENO;
     shellIsInteractive = isatty(shellTerminal);
 
     if (shellIsInteractive) {
-        /* Loop until we are in the foreground.  */
         while (tcgetpgrp(shellTerminal) != (shellPgid = getpgrp()))
             kill(-shellPgid, SIGTTIN);
 
-        /* Ignore interactive and job-control signals.  */
         signal(SIGINT, SIG_IGN);
         signal(SIGQUIT, SIG_IGN);
         signal(SIGTSTP, SIG_IGN);
@@ -30,14 +27,11 @@ void InitShell() {
         signal(SIGTTOU, SIG_IGN);
         signal(SIGCHLD, SigchldHandler);
 
-        /* Put ourselves in our own process group.  */
         shellPgid = getpid();
         if (setpgid(shellPgid, shellPgid) < 0)
             Perror("Couldn't put the shell in its own process group");
-                /* Grab control of the terminal.  */
                 tcsetpgrp(shellTerminal, shellPgid);
 
-        /* Save default terminal attributes for shell.  */
         tcgetattr(shellTerminal, &shellTmodes);
     }
 }
@@ -47,16 +41,13 @@ int main(int argc, char *argv[]) {
     int ret;
     char *cmd;
     char **argList;
-    //printf("shell pid%d,pgid%d,foreground pgid%d\n", getpid(),getpgrp(),tcgetpgrp(0));
     while ((cmd = GetInput(stdin)) != NULL) {
         if ((argList = ParseLine(cmd)) != NULL) {
             int jid = GetNextJid(jidList);
             int foreGround = IfForeGround(argList);
             Job *jobPtr = ComposeJob(cmd, argList, 0, jid, &shellTmodes);
-            if(jobPtr == NULL){
-                DeleteJobList(jobPtr);
-                continue;
-            } 
+            if(jobPtr == NULL) continue;
+            Process *ptr = jobPtr->firstProcess;
             ret = Processing(jobPtr, foreGround);
         }
     }

@@ -14,7 +14,6 @@ char *GetInput(FILE *fp) {
     char *buf;
     int c;
     int bufSize = 0, pos = 0;
-    int rein = 0, reout = 0;
     int whitespace = 0;
     printf("%s", PROMPT);
     while ((c = fgetc(fp)) != EOF) {
@@ -23,13 +22,6 @@ char *GetInput(FILE *fp) {
             if(whitespace)continue;
             whitespace = 1;
         }else{
-            if(c == '>'){
-                if(reout) FPRINTF("redirection syntax error");
-                reout = 1;
-            }else if(c == '<'){
-                if(rein) FPRINTF("redirection syntax error");
-                rein = 1;
-            }
             whitespace = 0;
         }
         if (pos == 0) {
@@ -83,4 +75,28 @@ int IfForeGround(char **argList){
    } 
    if(!strcmp(*argList, "&")) return 0;
    else return 1;
+}
+char *Redirect(char *str, int *which){
+    if(*which == -1){
+        if(*str != '<') return NULL;
+        return *++str ? str : NULL; 
+    }else if(*which == 1){
+        char *start = str;
+        int n = 0;
+        while(*str){
+            if(*str == '>')break;
+            if(*str <= '9' && *str >= '0')
+                n = n * 10 + (*str - '0');
+            else return NULL;
+            ++str;
+        }
+        if(*(str + 1) == 0) return NULL;
+        if(start == str) return str + 1;
+        if(n == 2) *which  = 2;
+        else if(n != 1) return NULL;
+        return str + 1;
+    }else{
+        return NULL;
+    }
+    *which = 1;
 }

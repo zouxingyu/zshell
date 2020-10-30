@@ -8,12 +8,8 @@
 
 #include "headers/function.h"
 #include "headers/job.h"
-#define FPRINTF(str)                  \
-    do {                              \
-        fprintf(stderr, "%s\n", str); \
-        return NULL;                  \
-    } while (0)
 extern pid_t shellPgid;
+/* for debug */
 void mode_to_letters(mode_t mode, char *modestr) {
     strcpy(modestr, "----------");
     if (S_ISDIR(mode))
@@ -45,8 +41,9 @@ Job *InsertJobList(Job *jobList, Job *jobPtr) {
     if (jobList == NULL) {
         return jobPtr;
     } else {
-        while (jobList->next) jobList = jobList->next;
-        jobList->next = jobPtr;
+        Job *tmp = jobList;
+        while (tmp->next) tmp = tmp->next;
+        tmp->next = jobPtr;
         return jobList;
     }
 }
@@ -149,7 +146,12 @@ int GetJobState(Job *jobPtr) {
     return 0;
 }
 void WaitForJob(Job *jobPtr) {
-    while (!IfJobStopped(jobPtr)) sleep(0.1);
+    int jid = jobPtr->jid;
+    while(1){
+        if(jidList[jid] == 0) return;
+        if(IfJobStopped(jobPtr)) return;
+        sleep(0.1);
+    }
 }
 Job *ComposeJob(char *cmd, char **argList, pid_t pgid, int jid,
                 struct termios *tmodesPtr) {
@@ -157,8 +159,10 @@ Job *ComposeJob(char *cmd, char **argList, pid_t pgid, int jid,
     char **start = argList;
     char **ptr = argList;
     Process *head = NULL, *tail;
-    while (*argList) {
+    int success = 1;
+    while (*argList && success) {
         if (!strcmp(*argList, "|")) {
+            free(*argList);
             *ptr = NULL;
             if (head == NULL) {
                 head = CreateProcess(start);
@@ -168,41 +172,62 @@ Job *ComposeJob(char *cmd, char **argList, pid_t pgid, int jid,
                 tail->next = tmp;
                 tail = tmp;
             }
-            start = argList + 1;
+            start = ++argList;
             ptr = start;
-            ++argList;
             continue;
         } else if (strchr(*argList, '>')) {
-            printf("---------------------\n");
-            char *tmp = *argList;
+            int which = 1;
+            char *tmp = Redirect(*argList, &which);
+            if(tmp == NULL) {
+                fprintf(stderr, "ouput redirection syntax error\n");
+                success = 0;
+            }
+            //fprintf(stderr, "write file name %s which %d\n", tmp, which);
             int fd;
-            if ((fd = open(tmp + 1, O_CREAT | O_TRUNC | O_WRONLY, 0777)) ==
+            if ((fd = open(tmp, O_CREAT | O_TRUNC | O_WRONLY, 0777)) ==
                 -1) {
-                FPRINTF("redirection open file error");
+                fprintf(stderr, "output redirection open file error\n");
+                success = 0;
             }
-            struct stat stmp;
-            if (stat(tmp + 1, &stmp) == -1) {
-                perror("stat");
-                return NULL;
+            if(which == 1){
+                jobPtr->jstdout = fd;
+            }else{
+                jobPtr->jstderr = fd;
             }
-            char modestr[11];
-            mode_to_letters(stmp.st_mode, modestr);
-            printf("mode: %s\n", modestr);
-            jobPtr->jstdout = fd;
+            free(*argList);
             ++argList;
         } else if (strchr(*argList, '<')) {
-            char *tmp = *argList;
+            int which = -1;
+            char *tmp = Redirect(*argList, &which);
+            if(tmp == NULL){
+                fprintf(stderr, "input redirection syntax error\n");
+                success = 0;
+            }
+            //fprintf(stderr, "read file name %s\n", tmp);
             int fd;
-            if ((fd = open(tmp + 1, O_RDONLY)) == -1) {
-                FPRINTF("redirection open file error");
+            if ((fd = open(tmp, O_RDONLY)) == -1) {
+                fprintf(stderr, "input redirection open file error\n");
+                success = 0;
             }
             jobPtr->jstdin = fd;
+            free(*argList);
             ++argList;
+        }else{
+            *ptr++ = *argList++;
         }
-        *ptr++ = *argList++;
     }
+    if(!success){
+        free(jobPtr);
+        return NULL;
+    }
+    *ptr = NULL;
     if (head == NULL) {
         head = CreateProcess(start);
+        tail = head;
+    }else{
+        Process *tmp = CreateProcess(start);
+        tail->next = tmp;
+        tail = tmp;
     }
     jobPtr->firstProcess = head;
     return jobPtr;

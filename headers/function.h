@@ -7,6 +7,7 @@ char **ParseLine(char *str);
 char *GetString(char *str, int len);
 int IsDelim(int c);
 int IfForeGround(char **argList);
+char *Redirect(char *str, int *which);
 
 int IsBuildIn(Job *jobPtr, int *ret);
 int Processing(Job *jobPtr, int foreGround);

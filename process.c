@@ -23,6 +23,11 @@ int Execute(Job *jobPtr, int foreGround) {
     pid_t pid;
     inFile = jobPtr->jstdin;
     errFile = jobPtr->jstderr;
+    sigset_t mask_all, mask_one, prev_one;
+    sigfillset(&mask_all);
+    sigemptyset(&mask_one);
+    sigaddset(&mask_one, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask_one, &prev_one);
     for (ptr = jobPtr->firstProcess; ptr != NULL; ptr = ptr->next) {
         if (ptr->next != NULL) {
             if (pipe(myPipe) < 0) Perror("pipe");
@@ -30,20 +35,14 @@ int Execute(Job *jobPtr, int foreGround) {
         } else {
             outFile = jobPtr->jstdout;
         }
-        sigset_t mask_all, mask_one, prev_one;
-        sigfillset(&mask_all);
-        sigemptyset(&mask_one);
-        sigaddset(&mask_one, SIGCHLD);
-        sigprocmask(SIG_BLOCK, &mask_one, &prev_one);
         pid = fork();
         if (pid == 0) {
             sigprocmask(SIG_SETMASK, &prev_one, NULL);
-            pid_t pid, pgid = jobPtr->pgid;
+            ptr->pid = getpid();
             if (shellIsInteractive) {
-                pid = getpid();
-                if (pgid == 0) pgid = pid;
-                setpgid(pid, pgid);
-                if (foreGround) tcsetpgrp(shellTerminal, pgid);
+                if (jobPtr->pgid == 0) jobPtr->pgid = ptr->pid;
+                setpgid(ptr->pid, jobPtr->pgid);
+                if (foreGround) tcsetpgrp(shellTerminal, jobPtr->pgid);
                 //printf("pid:%d,pgid:%d,foreground pgid:%d\n", pid, pgid, tcgetpgrp(shellTerminal));
             }
             signal(SIGINT, SIG_DFL);
@@ -51,6 +50,7 @@ int Execute(Job *jobPtr, int foreGround) {
             signal(SIGTSTP, SIG_DFL);
             signal(SIGTTIN, SIG_DFL);
             signal(SIGTTOU, SIG_DFL);
+            signal(SIGCHLD, SIG_DFL);
             if (inFile != STDIN_FILENO) {
                 dup2(inFile, STDIN_FILENO);
                 close(inFile);
@@ -70,9 +70,6 @@ int Execute(Job *jobPtr, int foreGround) {
             if (shellIsInteractive) {
                 if (jobPtr->pgid == 0) jobPtr->pgid = pid;
                 setpgid(pid, jobPtr->pgid);
-                sigprocmask(SIG_BLOCK, &mask_all, NULL);
-                jobList = InsertJobList(jobList, jobPtr);
-                sigprocmask(SIG_SETMASK, &prev_one, NULL);
             }
         } else {
             Perror("fork");
@@ -81,6 +78,9 @@ int Execute(Job *jobPtr, int foreGround) {
         if (outFile != jobPtr->jstdout) close(outFile);
         inFile = myPipe[0];
     }
+    sigprocmask(SIG_BLOCK, &mask_all, NULL);
+    jobList = InsertJobList(jobList, jobPtr);
+    sigprocmask(SIG_SETMASK, &prev_one, NULL);
     if (!shellIsInteractive)
         WaitForJob(jobPtr);
     else if (foreGround)
@@ -122,10 +122,11 @@ void SigchldHandler(int signum) {
     int status;
     pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
-        for (Job *jobPtr = jobList, *jobPrv = NULL; jobPtr != NULL;
-             jobPtr = jobPtr->next) {
-            Process *ptr;
-            for (ptr = jobPtr->firstProcess; ptr != NULL; ptr = ptr->next) {
+        Job *jobPre = NULL;
+        Job *jobPtr = jobList;
+        while(jobPtr){
+            Process *ptr = jobPtr->firstProcess;
+            while(ptr != NULL) {
                 if (ptr->pid == pid) {
                     if (WIFEXITED(status)) {
                         printf("process exit normally\n");
@@ -141,20 +142,26 @@ void SigchldHandler(int signum) {
                     }
                     break;
                 }
+                ptr = ptr->next;
             }
-            if (ptr == NULL) continue;
-            if (IfJobCompleted(jobPtr)) {
+            if (ptr && IfJobCompleted(jobPtr)) {
                 printf("job[%d] completed %s\n", jobPtr->jid, jobPtr->command);
-                if (jobPrv == NULL) {
+                Job *tmp = jobPtr;
+                if (jobPre == NULL) {
                     jobList = jobPtr->next;
+                    jobPtr = jobList;
                 } else {
-                    jobPrv->next = jobPtr->next;
+                    jobPre->next = jobPtr->next;
+                    jobPtr = jobPtr->next;
                 }
-                DeleteJob(jobPtr);
-            } else if (IfJobStopped(jobPtr)) {
+                DeleteJob(tmp);
+                break;
+            } else if (ptr && IfJobStopped(jobPtr)) {
                 printf("job[%d] stopped %s\n", jobPtr->jid, jobPtr->command);
+                break;
             }
-            jobPrv = jobPtr;
+            jobPre = jobPtr;
+            jobPtr = jobPtr->next;
         }
     }
     if (pid == 0 || errno == ECHILD) return;
