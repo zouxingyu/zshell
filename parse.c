@@ -1,6 +1,8 @@
+#include <stdlib.h>
 #include <string.h> 
 #include <stdio.h> 
-#include "headers/function.h" 
+#include "headers/util.h"
+#include "headers/parse.h"
 #define BUFSIZE 128 
 #define ARGSIZE 64 
 #define PROMPT "$"
@@ -54,9 +56,20 @@ char **ParseLine(char *str) {
         int len = 0;
         char *start = str;
         while (*str != '\0' && !IsDelim(*str)) ++str, ++len;
-        argList[slot++] = GetString(start, len);
+        char *tmp = GetString(start, len);
+        if(strchr(tmp, '>') || strchr(tmp, '<')){
+            if(!IsValidRedirect(tmp)){
+                fprintf(stderr, "invalid redirection syntax\n");
+                free(argList);
+                return NULL;
+            }
+        }
+        argList[slot++] = tmp;
     }
-    if (slot == 0) return NULL;
+    if (slot == 0) {
+        free(argList);
+        return NULL;
+    }
     argList[slot] = NULL;
     return argList;
 }
@@ -69,34 +82,34 @@ char *GetString(char *str, int len) {
     return p;
 }
 int IsDelim(int c) { return c == 0x20 || c == 0x09; }
-int IfForeGround(char **argList){
-   while(*(argList + 1) != NULL){
-        ++argList; 
-   } 
-   if(!strcmp(*argList, "&")) return 0;
-   else return 1;
+int IsForeGround(char *cmd){
+    char *pos = strchr(cmd, '&');
+    if(pos == NULL){
+        return 1;
+    }else{
+        ++pos;
+        while(IsDelim(*pos))++pos;
+        return *pos == '\0' ? 0 : 1;
+    }
+}
+int IsValidRedirect(char *str){
+    char *pos = str;
+    while(*pos != '<' || *pos != '>') ++str;
+    if(*pos == '<'){
+        if(str != pos) return 0;
+        if(*(pos + 1) == '\0') return 0;
+    }else{
+        if(pos != str + 1 || *str != '2' || *str != '1')
+            return 0;
+        if(*(pos + 1) == 0) return 0;
+    } 
+    return 1;
 }
 char *Redirect(char *str, int *which){
     if(*which == -1){
-        if(*str != '<') return NULL;
-        return *++str ? str : NULL; 
-    }else if(*which == 1){
-        char *start = str;
-        int n = 0;
-        while(*str){
-            if(*str == '>')break;
-            if(*str <= '9' && *str >= '0')
-                n = n * 10 + (*str - '0');
-            else return NULL;
-            ++str;
-        }
-        if(*(str + 1) == 0) return NULL;
-        if(start == str) return str + 1;
-        if(n == 2) *which  = 2;
-        else if(n != 1) return NULL;
         return str + 1;
-    }else{
-        return NULL;
+    }else if(*which == 1){
+        *which = *str - '0';
+        return str + 1;
     }
-    *which = 1;
 }

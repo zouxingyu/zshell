@@ -24,33 +24,29 @@ struct Job{
     struct termios tmodes;     
     int jstdin, jstdout, jstderr;  
 };
+
 extern char jidList[MAXSIZE];
 extern Job *jobList;
-extern int foreGround;
-extern pid_t shellPgid;
-extern struct termios shellTmodes;
-extern int shellTerminal;
-extern int shellIsInteractive;
+
 
 Job *CreateJob(char *cmd, pid_t pgid, int jid, struct termios *tmodesPtr);  
 Process *CreateProcess(char **argList);
-Job *InsertJobList(Job *jobList, Job *jobPtr);
+void InsertJobList(Job *jobPtr);
 void DeleteJobList(Job *jobPtr);
 void DeleteJob(Job *jobPtr);
 void DeleteProcessList(Process *ptr);
 
-Job *GetJobJid(Job *jobList, int jid);
-void ListJobs(Job *jobList);
+Job *GetJobJid(int jid);
+void ListJobs();
 void PutJobInFg(Job *jobPtr, int cont);
 void PutJobInBg(Job *jobPtr, int cont);
-int GetNextJid(char *jidList);
-Job *FindJob(Job *jobList, pid_t pgid);
-int IfJobStopped(Job *jobPtr);
-int IfJobCompleted(Job *jobPtr);
+int GetNextJid();
+Job *FindJob(pid_t pgid);
+int IsJobStopped(Job *jobPtr);
+int IsJobCompleted(Job *jobPtr);
 int GetJobState(Job *jobPtr);
 void SwitchState(Job *jobPtr, int foreGround, int cont);
 void WaitForJob(Job *jobPtr);
-int DoBgFg(Job *jobPtr); 
-Job *ComposeJob(char *cmd, char **argList, pid_t pgid, int jid, struct termios *tmodesPtr);
+Job *ComposeJob(char *cmd, char **argList, pid_t pgid, struct termios *tmodesPtr);
 
 #endif 

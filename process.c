@@ -4,20 +4,23 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-
-#include "headers/function.h"
+#include "headers/parse.h"
+#include "headers/process.h"
+#include "headers/env.h"
 #include "headers/job.h"
-/* for debug */
-int Processing(Job *jobPtr, int foreGround) {
-   // printf("cmd:%s\njid:%d\nargList:\n", jobPtr->command, jobPtr->jid);
-   // PrintArgList(jobPtr->firstProcess->argList);
+#include "headers/util.h"
+#include "headers/init.h"
+int Processing(char *cmd, char **argList) {
     int ret;
-    if (!IsBuildIn(jobPtr, &ret)) {
-        ret = Execute(jobPtr, foreGround);
+    if (!IsBuildIn(argList, &ret)) {
+        pid_t pgid = shellIsInteractive ? getpgrp() : 0;
+        int foreGround = IsForeGround(cmd);
+        ret = LaunchJob(cmd, argList, pgid, foreGround);
     }
     return ret;
 }
-int Execute(Job *jobPtr, int foreGround) {
+int LaunchJob(char *cmd, char **argList, pid_t pgid, int foreGround) {
+    Job *jobPtr = ComposeJob(cmd, argList, pgid, &shellTmodes); 
     Process *ptr;
     int myPipe[2], inFile, outFile, errFile;
     pid_t pid;
@@ -63,6 +66,8 @@ int Execute(Job *jobPtr, int foreGround) {
                 dup2(errFile, STDERR_FILENO);
                 close(errFile);
             }
+            environ = VTable2Environ();
+            if(environ == NULL) Ferror("VTable2Environ failed", 1);
             execvp(ptr->argList[0], ptr->argList);
             Perror("execvp");
         } else if (pid > 0) {
@@ -79,7 +84,7 @@ int Execute(Job *jobPtr, int foreGround) {
         inFile = myPipe[0];
     }
     sigprocmask(SIG_BLOCK, &mask_all, NULL);
-    jobList = InsertJobList(jobList, jobPtr);
+    InsertJobList(jobPtr);
     sigprocmask(SIG_SETMASK, &prev_one, NULL);
     if (!shellIsInteractive)
         WaitForJob(jobPtr);
@@ -89,27 +94,35 @@ int Execute(Job *jobPtr, int foreGround) {
         PutJobInBg(jobPtr, 0);
     return GetJobState(jobPtr);
 }
-int IsBuildIn(Job *jobPtr, int *ret) {
-    char **argList = jobPtr->firstProcess->argList;
+int IsBuildIn(char **argList, int *ret) {
     if (!strcmp(argList[0], "quit")) {
         exit(0);
-    } else if (!strcmp(argList[0], "jobs")) {
+    } else if (!strcmp(argList[0], "jobs") ) {
         ListJobs(jobList);
         return 1;
-    } else if (!strcmp(argList[0], "bg") || !strcmp(argList[0], "fg")) {
-        *ret = DoBgFg(jobPtr);
+    } else if ((!strcmp(argList[0], "bg") || !strcmp(argList[0], "fg"))) {
+        *ret = DoBgFg(argList);
+        return 1;
+    } else if (!strcmp(argList[0], "set") ){
+        VList();
+    } else if(strchr(argList[0], '=') ){
+        if(Assign(argList[0]) == -1)
+            fprintf(stderr, "add exvironment variable failed\n");
+        return 1;
+    } else if(!strcmp(argList[0], "export")){
+        if(VExport(argList[1]) == -1)
+            fprintf(stderr, "export environment variable failed\n");
         return 1;
     }
     return 0;
 }
-int DoBgFg(Job *jobPtr) {
-    char **argList = jobPtr->firstProcess->argList;
+int DoBgFg(char **argList) {
     if (argList[1] == NULL) return 1;
     int jid = atoi(argList[1]);
-    Job *tmp = GetJobJid(jobList, jid);
+    Job *tmp = GetJobJid(jid);
     if (tmp == NULL) return -1;
     int cont = 0;
-    if (IfJobStopped(tmp)) cont = 1;
+    if (IsJobStopped(tmp)) cont = 1;
     int fg = 1;
     if (!strcmp(argList[0], "bg")) {
         fg = 0;
@@ -144,7 +157,8 @@ void SigchldHandler(int signum) {
                 }
                 ptr = ptr->next;
             }
-            if (ptr && IfJobCompleted(jobPtr)) {
+            // remove this part later, put job delete into Processing function after Execute 
+            if (ptr && IsJobCompleted(jobPtr)) {
                 printf("job[%d] completed %s\n", jobPtr->jid, jobPtr->command);
                 Job *tmp = jobPtr;
                 if (jobPre == NULL) {
@@ -156,7 +170,7 @@ void SigchldHandler(int signum) {
                 }
                 DeleteJob(tmp);
                 break;
-            } else if (ptr && IfJobStopped(jobPtr)) {
+            } else if (ptr && IsJobStopped(jobPtr)) {
                 printf("job[%d] stopped %s\n", jobPtr->jid, jobPtr->command);
                 break;
             }
