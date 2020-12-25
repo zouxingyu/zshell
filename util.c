@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include "headers/util.h"
 void Perror(char *str) {
     perror(str);
     exit(1);
@@ -19,17 +19,6 @@ void *Realloc(void *str, size_t size) {
     if (p == NULL) Ferror("realloc", 1);
     return p;
 }
-void FreeArgList(char **argList) {
-    if (argList != NULL) {
-        while (*argList) {
-            free(*argList++);
-        }
-    }
-}
-void PrintArgList(char **argList) {
-    if (argList == NULL) return;
-    while (*argList) {
-        printf("%s ", *argList++);
-    }
-    printf("\n");
+void FreeReadBuf(ReadBuf *readBuf){
+
 }

@@ -11,8 +11,8 @@
         fprintf(stderr, "%s\n", str); \
         return NULL; \
     }while(0)
-char *GetInput(FILE *fp) {
-    if (fp == NULL) return NULL;
+int GetInput(FILE *fp, ReadBuf *readBuf) {
+    if (fp == NULL) return -1;
     char *buf;
     int c;
     int bufSize = 0, pos = 0;
@@ -35,43 +35,73 @@ char *GetInput(FILE *fp) {
         }
         buf[pos++] = c;
     }
-    if (c == EOF || pos == 0) return NULL;
+    if (c == EOF || pos == 0) return -1;
     buf[pos] = '\0';
-    return buf;
+    readBuf->cmd = buf; 
+    readBuf->cmdLen = pos;
+    return 0;
 }
-char **ParseLine(char *str) {
-    if (str == NULL || *str == '\0') return NULL;
-    char **argList;
+int ParseLine(char *str, ReadBuf *readBuf) {
+    in = out = err = NULL;
+    if (str == NULL || *str == '\0') return -1;
+    char **p;
     int slot = 0, listSize = 0;
+    bool validStr = true;
     while (*str != '\0') {
         while (IsDelim(*str)) ++str;
-        if (*str == '\0') break;
+        if (*str == '\0'){
+            validStr = false;
+            break;
+        } 
         if (slot == 0) {
-            argList = Malloc(ARGSIZE);
+            p = Malloc(ARGSIZE);
             listSize += ARGSIZE;
         } else if (slot + 1 >= listSize / sizeof(char *)) {
-            argList = Realloc(argList, listSize + ARGSIZE);
+            p = Realloc(p, listSize + ARGSIZE);
             listSize += ARGSIZE;
         }
         int len = 0;
         char *start = str;
         while (*str != '\0' && !IsDelim(*str)) ++str, ++len;
-        char *tmp = GetString(start, len);
-        if(strchr(tmp, '>') || strchr(tmp, '<')){
-            if(!IsValidRedirect(tmp)){
-                fprintf(stderr, "invalid redirection syntax\n");
-                free(argList);
-                return NULL;
-            }
+        if(ParseRedirect(start, len, readBuf) == -1){
+            validStr = false;
+            break;
+        }else if(len == 1 && *str == '|'){
+            p[slot++] = NULL;
+            readBuf->process++;
+        }else{
+            char *tmp = GetString(start, len);
+            p[slot++] = tmp;
         }
-        argList[slot++] = tmp;
     }
-    if (slot == 0) {
-        free(argList);
-        return NULL;
+    if (!validStr) {
+        return -1;
     }
-    argList[slot] = NULL;
-    return argList;
+    p[slot] = NULL;
+    readBuf->argList = p;
+    return 0;
+}
+int ParseRedirect(char *str, int len, ReadBuf *readBuf){
+    for(int i = 0; i < len; i++, str++){
+        if(*str == '>'){
+            if(i == 0){
+                readBuf->out = GetString(str + 1, len - 1); 
+            }else if(i == 1){
+                if(*(str - 1) == '1')
+                    readBuf->out = GetString(str + 1, len - 2);
+                else if(*(str - 1) == '2')
+                    readBuf->err = GetString(str + 1, len - 2);
+                else return -1;
+            }else{
+                return =-1;
+            } 
+        }else if(*str == '<'){
+            if(i == 0)
+                readBuf->in = GetString(str + 1, len - 1);
+            else if(i == 1 && *(str - 1) == '0')
+                readBuf->in = GetString(str + 1, len - 2);
+        }
+    }
 }
 char *GetString(char *str, int len) {
     if (str == NULL) return NULL;
@@ -92,24 +122,13 @@ int IsForeGround(char *cmd){
         return *pos == '\0' ? 0 : 1;
     }
 }
-int IsValidRedirect(char *str){
-    char *pos = str;
-    while(*pos != '<' || *pos != '>') ++str;
-    if(*pos == '<'){
-        if(str != pos) return 0;
-        if(*(pos + 1) == '\0') return 0;
-    }else{
-        if(pos != str + 1 || *str != '2' || *str != '1')
-            return 0;
-        if(*(pos + 1) == 0) return 0;
-    } 
-    return 1;
-}
-char *Redirect(char *str, int *which){
-    if(*which == -1){
-        return str + 1;
-    }else if(*which == 1){
-        *which = *str - '0';
-        return str + 1;
+char **Copy(char **start, char **end){
+    char **newArgList = Malloc(sizeof(char *) * (end - start + 1));
+    char **temp = newArgList;
+    while(start != end){
+        *temp++ = GetString(*start, strlen(*start)); 
+        start++;
     }
+    *temp = NULL;
+    return newArgList;
 }

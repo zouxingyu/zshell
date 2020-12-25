@@ -10,17 +10,17 @@
 #include "headers/job.h"
 #include "headers/util.h"
 #include "headers/init.h"
-int Processing(char *cmd, char **argList) {
+int Processing(char *cmd, char **argList, char *input, char *output) {
     int ret;
     if (!IsBuildIn(argList, &ret)) {
         pid_t pgid = shellIsInteractive ? getpgrp() : 0;
         int foreGround = IsForeGround(cmd);
-        ret = LaunchJob(cmd, argList, pgid, foreGround);
+        ret = LaunchJob(cmd, argList, input, output, pgid, foreGround);
     }
     return ret;
 }
-int LaunchJob(char *cmd, char **argList, pid_t pgid, int foreGround) {
-    Job *jobPtr = ComposeJob(cmd, argList, pgid, &shellTmodes); 
+int LaunchJob(ReadBuf *readBuf, pid_t pgid, int foreGround) {
+    Job *jobPtr = CreateJob(readBuf, pgid, &shellTmodes); 
     Process *ptr;
     int myPipe[2], inFile, outFile, errFile;
     pid_t pid;

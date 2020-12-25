@@ -10,18 +10,19 @@
 #include "headers/process.h"
 #include "headers/util.h"
 #include "headers/job.h"
-int shellTerminal;
-int shellIsInteractive;
-struct termios shellTmodes;
-pid_t shellPgid;
+
+int varTableSize = 0;
+Variable varTable[MAXVARSIZE];
 Job *jobList = NULL;
 char jidList[MAXSIZE];
-int varTableSize;
-Variable varTable[MAXVARSIZE];
+int shellTerminal;
+pid_t shellPgid;
+int shellIsInteractive;
+struct termios shellTmodes;
 
 void InitShell() {
-    int shellTerminal = STDIN_FILENO;
-    int shellIsInteractive = isatty(shellTerminal);
+    shellTerminal = STDIN_FILENO;
+    shellIsInteractive = isatty(shellTerminal);
     if (shellIsInteractive) {
         while (tcgetpgrp(shellTerminal) != (shellPgid = getpgrp()))
             kill(-shellPgid, SIGTTIN);
@@ -44,16 +45,15 @@ int main(int argc, char *argv[]) {
     InitShell();
     if (VEnviron2Table(environ)) Ferror("VEnviron2Table", 1);
     int ret;
-    char *cmd;
-    char **argList;
-    while ((cmd = GetInput(stdin)) != NULL) {
-        if ((argList = ParseLine(cmd)) != NULL) {
-            ret = Processing(cmd, argList);
-            FreeArgList(argList);
-            free(argList);
-            continue;
-  n       }
-        free(cmd);
+    bool stop = false;
+    ReadBuf readBuf;
+    while (!stop) {
+        if(GetInput(stdin, &readBuf) == -1 || ParseLine(cmd, &readBuf) == -1)
+            stop = true;
+        if(!stop){
+            ret = Processing(cmd, &readBuf);
+        }
+        FreeReadBuf(&readBuf);
     }
     return 0;
 }
