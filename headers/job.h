@@ -29,7 +29,8 @@ extern char jidList[MAXSIZE];
 extern Job *jobList;
 
 
-Job *CreateJob(char *cmd, pid_t pgid, int jid, struct termios *tmodesPtr);  
+int Redirect(Job *jobPtr, ReadBuf *readBuf);
+Job *CreateJob(ReadBuf *readBuf, pid_t pgid, struct termios *tmodesPtr);  
 Process *CreateProcess(char **argList);
 void InsertJobList(Job *jobPtr);
 void DeleteJobList(Job *jobPtr);

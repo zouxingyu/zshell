@@ -2,8 +2,8 @@
 #define PROCESS_H 
 #include <termios.h>
 void SigchldHandler(int signum);
-int Processing(char *cmd, char **argList, char *input, char *output); 
-int LaunchJob(char *cmd, char **argList, pid_t pgid, int foreGround); 
+int Processing(ReadBuf *readBuf); 
+int LaunchJob(ReadBuf *readBuf, pid_t pgid); 
 int IsBuildIn(char **argList, int *ret);
 int DoBgFg(char **argList);
 #endif

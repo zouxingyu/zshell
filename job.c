@@ -28,10 +28,10 @@ void InsertJobList(Job *jobPtr) {
         tmp->next = jobPtr;
     }
 }
-Process *CreateProcess(char **start, char **end) {
+Process *CreateProcess(char **start) {
     Process *ptr = Malloc(sizeof(Process));
     memset(ptr, 0, sizeof(Process));
-    ptr->argList = Copy(start, end);
+    ptr->argList = start;
     return ptr;
 }
 void DeleteJobList(Job *jobPtr) {
@@ -50,14 +50,6 @@ void DeleteJob(Job *jobPtr) {
 void DeleteProcessList(Process *ptr) {
     while (ptr) {
         Process *next = ptr->next;
-        if(ptr->argList){
-            char **temp = ptr->argList;
-            while(*temp){
-                free(*temp);
-                temp++;
-            }
-            free(ptr->argList);
-        }
         free(ptr);
         ptr = next;
     }
@@ -152,13 +144,13 @@ Job *CreateJob(ReadBuf *readBuf, pid_t pgid, struct termios *tmodesPtr) {
     Process *head = NULL, *tail = NULL;
     int success = 1;
     char **argList = readBuf->argList, **start = argList;
-    for(int i = 0, num = readBuf->process; i < num; i++){
+    for(int i = 0, size = readBuf->argLen; i < size; i++){
         if(*argList == NULL){
             if (head == NULL) {
-                head = CreateProcess(start, argList);
+                head = CreateProcess(start);
                 tail = head;
             } else {
-                Process *tmp = CreateProcess(start, argList);
+                Process *tmp = CreateProcess(start);
                 tail->next = tmp;
                 tail = tmp;
             }
@@ -169,8 +161,8 @@ Job *CreateJob(ReadBuf *readBuf, pid_t pgid, struct termios *tmodesPtr) {
     jobPtr->firstProcess = head;
     return jobPtr;
 }
-int Redirect(jobPtr *jobPtr, ReadBuf *readBuf){
-    if(readBuf->in){
+int Redirect(Job *jobPtr, ReadBuf *readBuf){
+    if(*readBuf->in){
             int fd;
             if ((fd = open(readBuf->in, O_RDONLY)) == -1) {
                 fprintf(stderr, "input redirection open file error\n");
@@ -178,7 +170,7 @@ int Redirect(jobPtr *jobPtr, ReadBuf *readBuf){
             }
             jobPtr->jstdin = fd;
     }
-    if(readBuf->out){
+    if(*readBuf->out){
             int fd;
             if ((fd = open(readBuf->out, O_CREAT | O_TRUNC | O_WRONLY, 0777)) == -1) {
                 fprintf(stderr, "output redirection open file error\n");
@@ -186,7 +178,7 @@ int Redirect(jobPtr *jobPtr, ReadBuf *readBuf){
             }
             jobPtr->jstdout = fd;
     }
-    if(readBuf->err){
+    if(*readBuf->err){
             int fd;
             if ((fd = open(readBuf->err, O_CREAT | O_TRUNC | O_WRONLY, 0777)) == -1) {
                 fprintf(stderr, "output redirection open file error\n");

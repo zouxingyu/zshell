@@ -3,14 +3,13 @@
 #include <sys/signal.h>
 #include <termios.h>
 #include <unistd.h>
-
+#include <string.h>
 #include "headers/env.h"
 #include "headers/init.h"
 #include "headers/parse.h"
 #include "headers/process.h"
 #include "headers/util.h"
 #include "headers/job.h"
-
 int varTableSize = 0;
 Variable varTable[MAXVARSIZE];
 Job *jobList = NULL;
@@ -41,18 +40,24 @@ void InitShell() {
         tcgetattr(shellTerminal, &shellTmodes);
     }
 }
+void FreeReadBuf(ReadBuf *readBuf){
+    for(int i = 0; i < readBuf->argLen; i++){
+        free(readBuf->argList[i]); 
+    }
+    memset(readBuf, 0, sizeof(ReadBuf));
+}
+
 int main(int argc, char *argv[]) {
     InitShell();
     if (VEnviron2Table(environ)) Ferror("VEnviron2Table", 1);
     int ret;
-    bool stop = false;
     ReadBuf readBuf;
-    while (!stop) {
-        if(GetInput(stdin, &readBuf) == -1 || ParseLine(cmd, &readBuf) == -1)
-            stop = true;
-        if(!stop){
-            ret = Processing(cmd, &readBuf);
-        }
+    memset(&readBuf, 0, sizeof(ReadBuf));
+    while (1) {
+        if(GetInput(stdin, &readBuf) == -1)
+           break;
+        if(ParseLine(&readBuf) != -1) 
+            ret = Processing(&readBuf);
         FreeReadBuf(&readBuf);
     }
     return 0;

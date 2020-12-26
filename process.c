@@ -10,17 +10,17 @@
 #include "headers/job.h"
 #include "headers/util.h"
 #include "headers/init.h"
-int Processing(char *cmd, char **argList, char *input, char *output) {
+int Processing(ReadBuf *readBuf) {
     int ret;
-    if (!IsBuildIn(argList, &ret)) {
-        pid_t pgid = shellIsInteractive ? getpgrp() : 0;
-        int foreGround = IsForeGround(cmd);
-        ret = LaunchJob(cmd, argList, input, output, pgid, foreGround);
+    if (!IsBuildIn(readBuf->argList, &ret)) {
+        pid_t pgid = shellIsInteractive ? 0 : getpgrp();
+        ret = LaunchJob(readBuf, pgid);
     }
     return ret;
 }
-int LaunchJob(ReadBuf *readBuf, pid_t pgid, int foreGround) {
+int LaunchJob(ReadBuf *readBuf, pid_t pgid) {
     Job *jobPtr = CreateJob(readBuf, pgid, &shellTmodes); 
+    int foreGround = readBuf->foreGround;
     Process *ptr;
     int myPipe[2], inFile, outFile, errFile;
     pid_t pid;
@@ -142,11 +142,8 @@ void SigchldHandler(int signum) {
             while(ptr != NULL) {
                 if (ptr->pid == pid) {
                     if (WIFEXITED(status)) {
-                        printf("process exit normally\n");
                         ptr->completed = 1;
                     } else if (WIFSIGNALED(status)) {
-                        printf("process terminated by signal[%d]\n",
-                               WTERMSIG(status));
                         ptr->completed = 1;
                     } else if (WIFSTOPPED(status)) {
                         ptr->stopped = 1;
@@ -159,7 +156,6 @@ void SigchldHandler(int signum) {
             }
             // remove this part later, put job delete into Processing function after Execute 
             if (ptr && IsJobCompleted(jobPtr)) {
-                printf("job[%d] completed %s\n", jobPtr->jid, jobPtr->command);
                 Job *tmp = jobPtr;
                 if (jobPre == NULL) {
                     jobList = jobPtr->next;
@@ -171,7 +167,6 @@ void SigchldHandler(int signum) {
                 DeleteJob(tmp);
                 break;
             } else if (ptr && IsJobStopped(jobPtr)) {
-                printf("job[%d] stopped %s\n", jobPtr->jid, jobPtr->command);
                 break;
             }
             jobPre = jobPtr;

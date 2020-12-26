@@ -19,6 +19,3 @@ void *Realloc(void *str, size_t size) {
     if (p == NULL) Ferror("realloc", 1);
     return p;
 }
-void FreeReadBuf(ReadBuf *readBuf){
-
-}
